@@ -1,5 +1,5 @@
 -- 0. Cria uma tabela temporária para guardar o Id da campanha.
--- O conceito de campanha não existia no SQL Server.
+-- O conceito de campanha não existe nos dados do SQL Server.
 BEGIN
   EXECUTE IMMEDIATE 'CREATE GLOBAL TEMPORARY TABLE TEMP_CAMPANHA_MAP (
      IDVISTORIA NUMBER,
@@ -8,12 +8,12 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   IF SQLCODE = -955 THEN NULL; ELSE RAISE; END IF;
 END;
-/
 
 -- 1. Insere uma campanha por vistoria (distinct IdVistoria) e guarda o Id da Campanha.
 DECLARE
   CURSOR cur_v IS
     SELECT DISTINCT v.IDVISTORIA,
+           v.IDBARRAGEM,
            v.IDCAMPANHA,
            v.IDTIPOVISTORIA,
            v.VISTORIADATAINICIO,
@@ -24,23 +24,23 @@ DECLARE
       FROM STG_TBVISTORIA v
       JOIN STG_VW_BDBARRAGEM b
         ON v.IDBARRAGEM = b.IDBARRAGEM;
-  l_bar_cd SNISSBARRAGENS@ORAHMG_LINK.BAR_CD%TYPE;
+  l_bar_cd NUMBER;
   l_cam_cd NUMBER;
 BEGIN
   FOR r IN cur_v LOOP
     BEGIN
       SELECT n.BAR_CD
         INTO l_bar_cd
-        FROM SNISSBARRAGENS@ORAHMG_LINK n
+        FROM SNISSBARRAGENS.SNBFT_BARRAGEM@ORAHMG_LINK n
        WHERE n.BAR_CD_SNISB = r.CODIGO_SNISB;
     EXCEPTION WHEN NO_DATA_FOUND THEN
       l_bar_cd := NULL;
     END;
     -- insere uma campanha para esta vistoria
-    INSERT INTO FISCALIZACAO_MIGRACAO.FISTB_CAMPANHA (
+    INSERT INTO FISCALIZACAO_MIGRACAO.FISTB_CAMPANHA_TEMP (
       CAM_CD,
-      CAM_TSC_CD,
-      CAM_TCA_CD,
+      CAM_TSC_CD, -- 1. Prevista; 2. Andamento; 3. Suspensa; 4. Concluida; 5. Cancelada
+      CAM_TCA_CD, -- 1. PAF; 2. Emergencial
       CAM_BAC_CD,
       CAM_SER_RES_CD,
       CAM_SER_AUX_CD,
@@ -54,33 +54,34 @@ BEGIN
       CAM_NM,
       CAM_NU_DOC_RELATORIO,
       CAM_NU_DOC_NOTATECNICA,
+      CAM_IC_MIGRADO,
       CAM_IC_BARRAGEM
     ) VALUES (
-      FISTB_CAMPANHA_SEQ.NEXTVAL,
-      1,
-      r.IDTIPOVISTORIA,
-      l_bar_cd,
-      NULL,
-      NULL,
-      TO_NUMBER(SUBSTR(r.IDCAMPANHA,1,4)),
-      TO_NUMBER(SUBSTR(r.IDCAMPANHA,6)),
-      r.VISTORIADATAINICIO,
-      r.VISTORIADATAFIM,
-      SUBSTR(r.VISTORIAFINALIDADE,1,500),
-      NULL,
-      r.NUMEROPROTON,
-      r.IDCAMPANHA,
-      NULL,
-      r.NUMEROPROTON,
-      1
+      FISSQ_CAMPANHA.NEXTVAL, -- CAM_CD
+      4, -- CAM_TSC_CD
+      1, -- CAM_TCA_CD
+      NULL, -- CAM_BAC_CD
+      NULL, -- CAM_SER_RES_CD
+      NULL, -- CAM_SER_AUX_CD
+      TO_NUMBER(SUBSTR(r.IDCAMPANHA,1,4)), -- CAM_NU_ANO
+      TO_NUMBER(SUBSTR(r.IDCAMPANHA,6)), -- CAM_NU
+      r.VISTORIADATAINICIO, -- CAM_DT_INICIO
+      r.VISTORIADATAFIM, -- CAM_DT_FIM
+      SUBSTRB(r.VISTORIAFINALIDADE,1,500), -- CAM_DS_FINALIDADE
+      NULL, -- CAM_NU_RELATORIO
+      NULL, -- CAM_NU_NOTATECNICAPROTON
+      SUBSTR(r.IDCAMPANHA,6) || '/' || SUBSTR(r.IDCAMPANHA,1,4), -- CAM_NM
+      NULL, -- CAM_NU_DOC_RELATORIO
+      NULL, -- CAM_NU_DOC_NOTATECNICA
+      1, -- CAM_IC_MIGRADO
+      1 -- CAM_IC_BARRAGEM
     ) RETURNING CAM_CD INTO l_cam_cd;
 
     -- guarda o Id da campanha
-    INSERT INTO TMP_CAMPAIGN_MAP (IDVISTORIA, CAM_CD)
+    INSERT INTO TEMP_CAMPANHA_MAP(IDVISTORIA, CAM_CD)
     VALUES (r.IDVISTORIA, l_cam_cd);
   END LOOP;
 END;
-/
 
 -- 2. Insere TbVistoria em FISTB_VISTORIA_BARRAGEM usando o Id da
 --    campanha gerado anteriormente e o BAR_CD obtido da view com
