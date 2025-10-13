@@ -241,7 +241,8 @@ SELECT
     WHEN s.IDTIPOOCORRENCIA = 3 THEN 3 -- de 'AI  - Multa Diária' para 'Multa Diária'
     WHEN s.IDTIPOOCORRENCIA = 4 THEN 4 -- de 'AI - Embargo Provisório' para 'Embargo Provisório'
     WHEN s.IDTIPOOCORRENCIA = 24 THEN 5 -- de 'AI - Embargo Definitivo' para 'Embargo Definitivo'
-    ELSE NULL -- demais casos, NULL. Casos não atendidos até agora: 25 Notificação, 5 Solic. Providências/Informação, 7 Protocolo Emergência
+    WHEN s.IDTIPOOCORRENCIA IN (25, 5) THEN NULL -- Notificação e Solic. Providências
+    ELSE NULL -- demais casos, NULL
   END AS AUI_TPR_CD, -- AUI_TPR_CD
   m.CAM_CD, -- AUI_CAM_CD
   s.OCORRENCIANUMERODOCREF, -- AUI_CD_REFERENCIA
@@ -259,7 +260,11 @@ SELECT
   s.OCORRENCIADATAINICIO, -- AUI_DT_RECEBIMENTOAR
   NULL, -- AUI_NU_DOCUMENTOREFERENCIA
   NULL, -- AUI_IC_VINCULACAOAUIANTERIOR
-  NULL, -- AUI_TIF_CD
+  CASE
+    WHEN s.IDTIPOOCORRENCIA IN (1, 2, 3, 4, 24) THEN 1 -- AI - Auto de Infração
+    WHEN s.IDTIPOOCORRENCIA IN (25, 5) THEN 3 -- Notificação
+    ELSE NULL
+  END AS AUI_TIF_CD, -- AUI_TIF_CD
   NULL, -- AUI_SER_CD
   NULL, -- AUI_NU_LACRE
   NULL, -- AUI_TIR_CD
