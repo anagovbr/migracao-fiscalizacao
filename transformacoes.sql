@@ -161,7 +161,7 @@ SELECT
         WHEN s.IDSITUACAOOCORRENCIA = 4 THEN 4 -- de 'Cancelada' para 'Cancelada/Negada'
         WHEN s.IDSITUACAOOCORRENCIA = 5 THEN 5 -- de 'Concluída/Arquivada' para 'Concluída'
         WHEN s.IDSITUACAOOCORRENCIA = 6 THEN 6 -- de 'Sem Pend. Téc. (Pend. Financeira)' para 'Sem Pend. Téc. (Pend. Financeira)'
-        WHEN s.IDSITUACAOOCORRENCIA = 7 THEN 8 -- Verificar com fábio a obs. 'verificar' no De-Para para ocorrencia 7: de 'Aguardando Cadastro Proton' para 'Em edição'. Confirmado com Josimar.
+        WHEN s.IDSITUACAOOCORRENCIA = 7 THEN 8 -- Verificar com Fábio a obs. 'verificar' no De-Para para ocorrencia 7: de 'Aguardando Cadastro Proton' para 'Em edição'. Confirmado com Josimar.
         ELSE NULL -- demais casos, NULL. (Confirmado com Josimar, não pode ter NULL!!!! Verificar no banco todos os casos de IdSituacaoOcorrencia)
     END AS OCO_TSO_CD, -- OCO_TSO_CD
   NULL, -- OCO_NU_PROTOCOLO
@@ -297,7 +297,8 @@ JOIN FISCALIZACAO_MIGRACAO.FISTB_OCORRENCIA o
   ON o.OCO_NU_PROTOCOLO = s.OCORRENCIANUMERODOC
 LEFT JOIN STG_TBTECNICO t
   ON s.IDTECNICO = t.IDTECNICO
-WHERE NOT EXISTS (
+WHERE WHERE s.IDTIPOOCORRENCIA != 7 -- Descarta registros do tipo 'Protocolo Emergência' (Barragens não mais fiscalizadas pela ANA segundo o Josimar)
+AND NOT EXISTS (
   SELECT 1 FROM FISCALIZACAO_MIGRACAO.FISTB_INSTRUMENTOFISCALIZACAO i
    WHERE i.AUI_OCO_CD = o.OCO_CD
 );
