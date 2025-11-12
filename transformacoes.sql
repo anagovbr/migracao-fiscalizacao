@@ -147,7 +147,7 @@ JOIN TEMP_CAMPANHA_MAP m ON v.IDVISTORIA = m.IDVISTORIA
 JOIN STG_VW_BDBARRAGEM b ON v.IDBARRAGEM = b.IDBARRAGEM
 LEFT JOIN TEMP_SNISB_MAP n ON b.CODIGO_SNISB = n.BAR_CD_SNISB;
 
--- 3. Insere TbOcorrencia em FISTB_OCORRENCIA
+-- 4. Insere TbOcorrencia em FISTB_OCORRENCIA
 INSERT INTO FISCALIZACAO_MIGRACAO.FISTB_OCORRENCIA_TEMP (
   OCO_CD,
   OCO_EMI_CD,
@@ -200,7 +200,7 @@ FROM STG_TBOCORRENCIA s
 JOIN STG_VW_BDBARRAGEM b ON s.IDBARRAGEM = b.IDBARRAGEM
 LEFT JOIN TEMP_SNISB_MAP n ON b.CODIGO_SNISB = n.BAR_CD_SNISB;
 
--- 4. Gera um registro em FISTB_INSTRUMENTOFISCALIZACAO linkando
+-- 5. Gera um registro em FISTB_INSTRUMENTOFISCALIZACAO linkando
 --    campanha, vistoria e ocorrência usando o CAM_CD mapeado na
 --    tabela temporária.
 INSERT INTO FISCALIZACAO_MIGRACAO.FISTB_INSTRUMENTOFISCALIZACAO_TEMP (
@@ -264,8 +264,8 @@ SELECT
   END AS AUI_TPR_CD, -- AUI_TPR_CD
   m.CAM_CD, -- AUI_CAM_CD
   s.OCORRENCIANUMERODOCREF, -- AUI_CD_REFERENCIA
-  SUBSTR(s.OCORRENCIAPROVIDENCIAS,1,2000), -- AUI_DS_SITUACAO
-  SUBSTR(s.OCORRENCIADESCRICAO,1,2000), -- AUI_DS_NOTIFICADOA
+  SUBSTRB(s.OCORRENCIAPROVIDENCIAS,1,2000), -- AUI_DS_SITUACAO
+  SUBSTRB(s.OCORRENCIADESCRICAO,1,2000), -- AUI_DS_NOTIFICADOA
   CASE
     WHEN s.OCORRENCIAPRAZO > 999 THEN 999
     ELSE s.OCORRENCIAPRAZO 
@@ -276,7 +276,7 @@ SELECT
   NULL, -- AUI_NU_SIAPE
   1, -- AUI_NU_AUTOINFRACAO (OcorrenciaNumeroDoc ???)
   1, -- AUI_IC_LAVRADOEMCAMPO (Toda a importação vai ser auto lavrado em campo)
-  s.OCORRENCIANUMEROAR, -- AUI_NU_RASTREAMENTOAR
+  SUBSTRB(s.OCORRENCIANUMEROAR, 1, 45), -- AUI_NU_RASTREAMENTOAR
   0, -- AUI_IC_ASSOCIADOCAMPANHA
   s.OCORRENCIADATAINICIO, -- AUI_DT_RECEBIMENTOAR
   NULL, -- AUI_NU_DOCUMENTOREFERENCIA
@@ -314,3 +314,45 @@ JOIN STG_VW_BDBARRAGEM b ON s.IDBARRAGEM = b.IDBARRAGEM
 JOIN TEMP_CAMPANHA_MAP m ON s.IDBARRAGEM = m.IDBARRAGEM
 JOIN FISCALIZACAO_MIGRACAO.FISTB_OCORRENCIA_TEMP o ON o.IDOCORRENCIA = s.IDOCORRENCIA
 WHERE s.IDTIPOOCORRENCIA != 7; -- Descarta registros do tipo 'Protocolo Emergência' (Barragens não mais fiscalizadas pela ANA segundo o Josimar)
+
+-- 6. Sync sequences
+DECLARE
+  l_max_value NUMBER;
+  l_seq_exists NUMBER;
+  l_current_value NUMBER;
+  l_increment NUMBER;
+  
+  PROCEDURE sync_sequence(p_seq_name VARCHAR2, p_table_name VARCHAR2, p_column_name VARCHAR2) IS
+  BEGIN
+    -- Verifica se a sequencia existe.
+    SELECT COUNT(*) INTO l_seq_exists
+    FROM user_sequences
+    WHERE sequence_name = p_seq_name;
+    IF l_seq_exists = 0 THEN
+      DBMS_OUTPUT.PUT_LINE('Sequence ' || p_seq_name || ' does not exist. Skipping.');
+      RETURN;
+    END IF;
+    -- Pega o valor máximo da tabela
+    EXECUTE IMMEDIATE 'SELECT NVL(MAX(' || p_column_name || '), 0) FROM ' || p_table_name 
+      INTO l_max_value;
+    -- Pega o valor corrente da sequencia
+    EXECUTE IMMEDIATE 'SELECT ' || p_seq_name || '.NEXTVAL FROM DUAL' 
+      INTO l_current_value;
+    -- Se a sequencia está para trás, atualiza
+    IF l_current_value <= l_max_value THEN
+      l_increment := l_max_value - l_current_value + 1;
+      EXECUTE IMMEDIATE 'ALTER SEQUENCE ' || p_seq_name || ' INCREMENT BY ' || l_increment;
+      EXECUTE IMMEDIATE 'SELECT ' || p_seq_name || '.NEXTVAL FROM DUAL' INTO l_current_value;
+      EXECUTE IMMEDIATE 'ALTER SEQUENCE ' || p_seq_name || ' INCREMENT BY 1';
+      DBMS_OUTPUT.PUT_LINE(p_seq_name || ' sincronizada. Próximo valor: ' || l_current_value);
+    ELSE
+      DBMS_OUTPUT.PUT_LINE(p_seq_name || ' sequencia a frente. Valor corrente: ' || l_current_value || ', Valor max. na tabela: ' || l_max_value);
+    END IF;
+  END;
+BEGIN
+  sync_sequence('FISSQ_CAMPANHA', 'FISCALIZACAO_MIGRACAO.FISTB_CAMPANHA', 'CAM_CD');
+  sync_sequence('FISSQ_VISTORIABARRAGEM', 'FISCALIZACAO_MIGRACAO.FISTB_VISTORIA_BARRAGEM', 'VIB_CD');
+  sync_sequence('FISSQ_OCORRENCIA', 'FISCALIZACAO_MIGRACAO.FISTB_OCORRENCIA', 'OCO_CD');
+  sync_sequence('FISSQ_INSTFISCALIZACAO', 'FISCALIZACAO_MIGRACAO.FISTB_INSTRUMENTOFISCALIZACAO', 'AUI_CD');
+  DBMS_OUTPUT.PUT_LINE('Sequence sync complete!');
+END;
