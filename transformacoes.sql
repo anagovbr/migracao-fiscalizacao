@@ -434,6 +434,19 @@ LEFT JOIN FISCALIZACAO_ETL_RW.TEMP_CAMPANHA_MAP m ON s.IDVISTORIA = m.IDVISTORIA
 LEFT JOIN FISCALIZACAO_ETL_RW.TEMP_TECNICO_MAP tm ON s.IDTECNICO = tm.IDTECNICO
 WHERE s.IDTIPOOCORRENCIA != 7; -- Descarta registros do tipo 'Protocolo Emergência' (Essas barragens não mais fiscalizadas pela ANA segundo o Josimar)
 
+-- 5.1 Atualiza AUI_NU_DOCUMENTOREFERENCIA com o AUI_CD do instrumento referenciado
+-- Durante o INSERT, AUI_NU_DOCUMENTOREFERENCIA guarda temporariamente o número do documento
+-- referenciado (vindo de OCORRENCIANUMERODOCREF). Este UPDATE converte para o AUI_CD
+-- correspondente, fazendo lookup pelo número do documento (AUI_NU_INSTRUMENTO).
+-- Usa MIN(AUI_CD) para casos onde existem múltiplos instrumentos com o mesmo número.
+UPDATE FISCALIZACAO_ETL_RW.FISTB_INSTRUMENTOFISCALIZACAO_TEMP a
+SET AUI_CD_REFERENCIA = (
+    SELECT MIN(ref.AUI_CD)
+    FROM FISCALIZACAO_ETL_RW.FISTB_INSTRUMENTOFISCALIZACAO_TEMP ref
+    WHERE ref.AUI_NU_INSTRUMENTO = a.AUI_NU_DOCUMENTOREFERENCIA
+)
+WHERE a.AUI_IC_VINCULACAOAUIANTERIOR = 1;
+
 -- 5A. Insere FISTB_ACOMPANHAMENTOOCORRENCIA para registros com dados de multa
 INSERT INTO FISCALIZACAO_ETL_RW.FISTB_ACOMPANHAMENTOOCORRENCIA_TEMP (
   AOH_CD,
