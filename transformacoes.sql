@@ -306,7 +306,7 @@ SELECT
         ELSE NULL -- demais casos, NULL. (Confirmado com Josimar, não pode ter NULL!!!! Verificar no banco todos os casos de IdSituacaoOcorrencia)
     END AS OCO_TSO_CD, -- OCO_TSO_CD
   NULL, -- OCO_NU_PROTOCOLO
-  NULL, -- OCO_DT_RECEBIMENTOAR
+  s.OCORRENCIADATAINICIO, -- OCO_DT_RECEBIMENTOAR
   NULL, -- OCO_DT_VENCIMENTOOCORRENCIA
   1, -- OCO_IC_MIGRADO
   NULL, -- OCO_NU_MINUTA
